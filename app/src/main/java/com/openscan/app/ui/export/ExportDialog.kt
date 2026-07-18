@@ -45,9 +45,15 @@ fun ExportDialog(
                             viewModel.exportAsPdf(documentId) { result ->
                                 when (result) {
                                     is ExportViewModel.ExportResult.Success -> {
-                                        com.openscan.app.ui.export.ShareHelper.shareUri(
-                                            context, result.uri, result.mimeType, "Document"
-                                        )
+                                        if (result.uris.size == 1) {
+                                            com.openscan.app.ui.export.ShareHelper.shareUri(
+                                                context, result.uris.first(), result.mimeType, "Document"
+                                            )
+                                        } else {
+                                            com.openscan.app.ui.export.ShareHelper.shareMultipleUris(
+                                                context, result.uris, result.mimeType, "Document"
+                                            )
+                                        }
                                     }
                                     is ExportViewModel.ExportResult.Error -> {
                                         Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
@@ -66,9 +72,15 @@ fun ExportDialog(
                             viewModel.exportAsImages(documentId) { result ->
                                 when (result) {
                                     is ExportViewModel.ExportResult.Success -> {
-                                        com.openscan.app.ui.export.ShareHelper.shareUri(
-                                            context, result.uri, result.mimeType, "Document"
-                                        )
+                                        if (result.uris.size == 1) {
+                                            com.openscan.app.ui.export.ShareHelper.shareUri(
+                                                context, result.uris.first(), result.mimeType, "Document"
+                                            )
+                                        } else {
+                                            com.openscan.app.ui.export.ShareHelper.shareMultipleUris(
+                                                context, result.uris, result.mimeType, "Document"
+                                            )
+                                        }
                                     }
                                     is ExportViewModel.ExportResult.Error -> {
                                         Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()

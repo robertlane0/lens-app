@@ -5,8 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
-import android.os.Environment
-import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -30,7 +28,7 @@ class ExportViewModel @Inject constructor(
 ) : ViewModel() {
 
     sealed class ExportResult {
-        data class Success(val uri: Uri, val mimeType: String) : ExportResult()
+        data class Success(val uris: List<Uri>, val mimeType: String) : ExportResult()
         data class Error(val message: String) : ExportResult()
     }
 
@@ -83,7 +81,7 @@ class ExportViewModel @Inject constructor(
                     file
                 )
 
-                ExportResult.Success(uri, "application/pdf")
+                ExportResult.Success(listOf(uri), "application/pdf")
             } catch (e: Exception) {
                 ExportResult.Error(e.message ?: "Export failed")
             }
@@ -106,15 +104,10 @@ class ExportViewModel @Inject constructor(
                 }
                 val pages = repository.getPages(documentId)
 
-                val dirName = "OpenScan_${SimpleDateFormat(
-                    "yyyyMMdd_HHmmss", Locale.US
-                ).format(Date())}"
-
-                val picturesDir = Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_PICTURES
-                )
-                val exportDir = File(picturesDir, dirName)
+                val exportDir = File(context.cacheDir, "exports")
                 exportDir.mkdirs()
+
+                val uris = mutableListOf<Uri>()
 
                 for ((index, page) in pages.withIndex()) {
                     val bitmap = BitmapFactory.decodeFile(
@@ -124,20 +117,13 @@ class ExportViewModel @Inject constructor(
                     FileOutputStream(file).use { out ->
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
                     }
-                }
-
-                val firstPage = pages.firstOrNull()
-                val shareUri = if (firstPage != null) {
-                    val file = File(exportDir, "page_1.jpg")
-                    FileProvider.getUriForFile(
+                    val uri = FileProvider.getUriForFile(
                         context, "${context.packageName}.provider", file
                     )
-                } else null
+                    uris.add(uri)
+                }
 
-                ExportResult.Success(
-                    shareUri ?: Uri.EMPTY,
-                    "image/jpeg"
-                )
+                ExportResult.Success(uris, "image/jpeg")
             } catch (e: Exception) {
                 ExportResult.Error(e.message ?: "Export failed")
             }
