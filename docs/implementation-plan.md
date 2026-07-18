@@ -57,7 +57,7 @@ flowchart LR
 | **UI** | Jetpack Compose + Material 3 |
 | **DI** | Hilt 2.53.1 |
 | **Camera** | CameraX 1.4.1 |
-| **Document detection** | Manual corner drag in Crop screen (no auto-detection in preview) |
+| **Document detection** | Manual corner drag in Crop screen (auto-detection not yet implemented) |
 | **Image processing** | Android `Bitmap` + `Matrix` + `ColorMatrix` (no OpenCV) |
 | **PDF export** | Android `PdfDocument` API (built-in) |
 | **OCR** | ML Kit Text Recognition 16.0.1 (on-device) |
@@ -72,12 +72,12 @@ flowchart LR
 
 | Planned | Actual | Reason |
 |---------|--------|--------|
-| OpenCV for border detection | Not used; manual corner drag in CropScreen | Compose Canvas + drag gestures sufficient; avoids native library size |
+| OpenCV for border detection | Not yet integrated; manual corner drag in CropScreen | Contour auto-detection planned for a future iteration |
 | OpenCV for perspective warp | `ImageProcessor.warpPerspective` using `Matrix.setPolyToPoly` | Android built-in API handles 4-point perspective transform |
-| Auto-detect document borders | Placeholder `detectDocumentBorders` returns 10% inset | Contour detection not implemented; manual crop used instead |
+| Auto-detect document borders | Not yet implemented (`detectDocumentBorders` returns 10% inset) | Placeholder awaiting contour detection integration |
 | ML Kit ImageAnalysis for barcode | Separate `BarcodeScanner` class; not integrated into live preview | Post-capture barcode scanning on the captured bitmap |
 | Reorder with drag-and-drop library | Not implemented; `movePage` available in ReviewViewModel | Page reorder API exists but no drag-and-drop UI |
-| OpenCV dependency | Not included | All image processing uses Android SDK built-ins |
+| OpenCV dependency | Not yet included | OpenCV integration planned for auto edge detection |
 
 ## Feature Implementation Status
 
@@ -103,9 +103,9 @@ flowchart LR
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Auto document border detection in preview | Placeholder | `detectDocumentBorders` returns inset rect; manual crop only |
+| Auto document border detection in preview | Not yet implemented | `detectDocumentBorders` returns inset rect; manual crop only; OpenCV integration planned |
 | Page reorder drag-and-drop UI | Backend only | `ReviewViewModel.movePage` exists; no UI gesture |
-| OpenCV integration | Not used | Replaced by Android SDK built-in `Matrix` operations |
+| OpenCV integration | Not yet integrated | Auto edge detection planned for crop screen |
 | ONNX / ML-based document classification | Not implemented | Not needed for v1 |
 | Auto-capture on stable border detection | Not implemented | Manual capture only |
 | Aspect ratio presets in crop | Not implemented | Free-form crop only |

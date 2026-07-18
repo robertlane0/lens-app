@@ -14,21 +14,21 @@
 
 ## Key Design Decisions
 
-### Why No OpenCV?
+### Why Not Yet OpenCV?
 
-The original implementation plan called for OpenCV for contour-based document detection and perspective correction. In practice:
+The original implementation plan called for OpenCV for contour-based document detection and perspective correction. Current state:
 
 - **Perspective correction** was implemented using Android's built-in `Matrix.setPolyToPoly()` + `Bitmap.createBitmap()`, which handles 4-point perspective transforms natively
-- **Document border detection** was reduced to a placeholder (`detectDocumentBorders` returns 10% inset rectangle) — users manually drag corners in the Crop screen
-- **Benefit**: Avoids ~20 MB of native library bloat per architecture
+- **Document border detection** is not yet implemented — a placeholder (`detectDocumentBorders` returns 10% inset rectangle) exists, and users manually drag corners in the Crop screen
+- **OpenCV integration** is deferred to a future iteration; the ~20 MB native library size needs careful evaluation per architecture
 
-### Why No Auto-Detect in Preview?
+### Why Not Yet Auto-Detect in Preview?
 
-Auto-document border detection in the camera preview was deprioritized because:
+Auto-document border detection in the camera preview has not yet been implemented:
 - Reliable detection requires either OpenCV (contour detection) or ML Kit (on-device model)
-- OpenCV adds significant APK size
+- OpenCV adds significant APK size, which needs careful evaluation
 - ML Kit's on-device image labeling is not optimized for real-time document corner regression
-- Manual corner drag in the Crop screen provides precise results without complex CV pipeline
+- Manual corner drag in the Crop screen provides precise results for now, with auto-detect planned as a future enhancement
 
 ### State Machine vs NavController
 
