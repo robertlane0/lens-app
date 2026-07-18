@@ -44,7 +44,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         Spacer(modifier = Modifier.height(8.dp))
 
         SettingsRow(label = "Version", value = versionName)
-        SettingsRow(label = "License", value = "GNU General Public License v3.0")
+        SettingsRow(label = "License", value = "MIT")
 
         Spacer(modifier = Modifier.height(24.dp))
 

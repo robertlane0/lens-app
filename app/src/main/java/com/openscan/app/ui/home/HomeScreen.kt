@@ -29,7 +29,8 @@ enum class HomeTab(val label: String) {
 @Composable
 fun HomeScreen(
     onNavigateToCapture: () -> Unit,
-    onNavigateToGallery: () -> Unit
+    onNavigateToGallery: () -> Unit,
+    onDocumentSaved: (Long) -> Unit = {}
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -63,7 +64,7 @@ fun HomeScreen(
         when (selectedTab) {
             0 -> CaptureScreen(
                 onNavigateBack = {},
-                onDocumentSaved = { onNavigateToCapture() },
+                onDocumentSaved = { docId -> onDocumentSaved(docId) },
                 modifier = Modifier.padding(padding)
             )
             2 -> SettingsScreen(

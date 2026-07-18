@@ -35,7 +35,12 @@ fun OpenScanNavHost(
         composable(Routes.HOME) {
             HomeScreen(
                 onNavigateToCapture = { navController.navigate(Routes.CAPTURE) },
-                onNavigateToGallery = { navController.navigate(Routes.GALLERY) }
+                onNavigateToGallery = { navController.navigate(Routes.GALLERY) },
+                onDocumentSaved = { docId ->
+                    navController.navigate(Routes.review(docId)) {
+                        popUpTo(Routes.HOME)
+                    }
+                }
             )
         }
         composable(Routes.CAPTURE) {

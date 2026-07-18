@@ -7,10 +7,12 @@ import com.openscan.app.data.db.Document
 import com.openscan.app.data.db.Page
 import com.openscan.app.data.repository.DocumentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
@@ -30,39 +32,33 @@ class CaptureViewModel @Inject constructor(
     private val _state = MutableStateFlow(CaptureState())
     val state: StateFlow<CaptureState> = _state.asStateFlow()
 
-    fun startNewDocument() {
+    private var nextDocumentId: Long? = null
+
+    fun addPage(imageFile: File) {
         viewModelScope.launch {
-            val doc = Document(
-                title = "Scan ${java.text.SimpleDateFormat(
-                    "yyyy-MM-dd HH:mm",
-                    java.util.Locale.getDefault()
-                ).format(java.util.Date())}",
-                pageCount = 0
-            )
-            val docId = repository.insertDocument(doc)
-            _state.value = _state.value.copy(currentDocumentId = docId, pageCount = 0)
+            val docId = nextDocumentId ?: createDocument()
+            addPageInternal(docId, imageFile)
         }
     }
 
-    fun addPage(imageFile: File) {
-        val docId = _state.value.currentDocumentId
-        if (docId == null) {
-            startNewDocument()
-            viewModelScope.launch {
-                _state.value.let { state ->
-                    val docId = state.currentDocumentId ?: return@launch
-                    addPageInternal(docId, imageFile)
-                }
-            }
-        } else {
-            viewModelScope.launch {
-                addPageInternal(docId, imageFile)
-            }
-        }
+    private suspend fun createDocument(): Long {
+        val doc = Document(
+            title = "Scan ${java.text.SimpleDateFormat(
+                "yyyy-MM-dd HH:mm",
+                java.util.Locale.getDefault()
+            ).format(java.util.Date())}",
+            pageCount = 0
+        )
+        val docId = repository.insertDocument(doc)
+        nextDocumentId = docId
+        _state.value = _state.value.copy(currentDocumentId = docId, pageCount = 0)
+        return docId
     }
 
     private suspend fun addPageInternal(docId: Long, imageFile: File) {
-        val maxPage = repository.getMaxPageNumber(docId) ?: -1
+        val maxPage = withContext(Dispatchers.IO) {
+            repository.getMaxPageNumber(docId) ?: -1
+        }
         val page = Page(
             documentId = docId,
             pageNumber = maxPage + 1,
@@ -90,5 +86,6 @@ class CaptureViewModel @Inject constructor(
 
     fun clear() {
         _state.value = CaptureState()
+        nextDocumentId = null
     }
 }
