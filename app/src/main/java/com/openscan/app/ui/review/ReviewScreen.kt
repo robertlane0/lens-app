@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -63,6 +64,7 @@ fun ReviewScreen(
     documentId: Long,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (Long, Long) -> Unit,
+    onNavigateToCrop: (Long, Long) -> Unit,
     onNavigateToCamera: () -> Unit,
     viewModel: ReviewViewModel = hiltViewModel()
 ) {
@@ -154,7 +156,19 @@ fun ReviewScreen(
                             contentScale = ContentScale.Fit
                         )
 
-                        // Edit button
+                        // Crop & Edit buttons
+                        IconButton(
+                            onClick = { onNavigateToCrop(currentPage.id, documentId) },
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(8.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                    RoundedCornerShape(50)
+                                )
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = "Crop")
+                        }
                         IconButton(
                             onClick = { onNavigateToEdit(currentPage.id, documentId) },
                             modifier = Modifier

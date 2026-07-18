@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.openscan.app.ui.capture.CaptureScreen
+import com.openscan.app.ui.crop.CropScreen
 import com.openscan.app.ui.edit.EditScreen
 import com.openscan.app.ui.gallery.GalleryScreen
 import com.openscan.app.ui.home.HomeScreen
@@ -18,10 +19,12 @@ object Routes {
     const val CAPTURE = "capture"
     const val REVIEW = "review/{documentId}"
     const val EDIT = "edit/{pageId}/{documentId}"
+    const val CROP = "crop/{pageId}/{documentId}"
     const val GALLERY = "gallery"
 
     fun review(documentId: Long) = "review/$documentId"
     fun edit(pageId: Long, documentId: Long) = "edit/$pageId/$documentId"
+    fun crop(pageId: Long, documentId: Long) = "crop/$pageId/$documentId"
 }
 
 @Composable
@@ -64,6 +67,9 @@ fun OpenScanNavHost(
                 onNavigateToEdit = { pageId, docId ->
                     navController.navigate(Routes.edit(pageId, docId))
                 },
+                onNavigateToCrop = { pageId, docId ->
+                    navController.navigate(Routes.crop(pageId, docId))
+                },
                 onNavigateToCamera = {
                     navController.navigate(Routes.CAPTURE) {
                         popUpTo(Routes.HOME)
@@ -81,6 +87,21 @@ fun OpenScanNavHost(
             val pageId = backStackEntry.arguments?.getLong("pageId") ?: return@composable
             val documentId = backStackEntry.arguments?.getLong("documentId") ?: return@composable
             EditScreen(
+                pageId = pageId,
+                documentId = documentId,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = Routes.CROP,
+            arguments = listOf(
+                navArgument("pageId") { type = NavType.LongType },
+                navArgument("documentId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val pageId = backStackEntry.arguments?.getLong("pageId") ?: return@composable
+            val documentId = backStackEntry.arguments?.getLong("documentId") ?: return@composable
+            CropScreen(
                 pageId = pageId,
                 documentId = documentId,
                 onNavigateBack = { navController.popBackStack() }

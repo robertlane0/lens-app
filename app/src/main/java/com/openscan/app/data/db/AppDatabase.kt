@@ -10,7 +10,7 @@ import javax.inject.Singleton
 
 @Database(
     entities = [Document::class, Page::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +27,6 @@ class DatabaseProvider @Inject constructor(
             context,
             AppDatabase::class.java,
             "openscan.db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 }

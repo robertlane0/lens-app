@@ -25,5 +25,8 @@ data class Page(
     val imagePath: String,
     val enhancedPath: String? = null,
     val rotation: Int = 0,
-    val filterType: String = "original"
+    val filterType: String = "original",
+    val cropPoints: String? = null,
+    val cropRect: String? = null,
+    val perspectivePath: String? = null
 )

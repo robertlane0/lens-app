@@ -3,15 +3,20 @@ package com.openscan.app.image
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.PointF
+import android.graphics.RectF
 import android.renderscript.Allocation
 import android.renderscript.Element
 import android.renderscript.RenderScript
 import android.renderscript.ScriptIntrinsicConvolve3x3
 import java.io.File
+import kotlin.math.hypot
+import kotlin.math.max
 
 class ImageProcessor(private val context: Context) {
 
@@ -96,24 +101,70 @@ class ImageProcessor(private val context: Context) {
             cropRight - cropLeft, cropBottom - cropTop)
     }
 
-    data class DocumentBorders(
-        val topLeft: Pair<Float, Float>,
-        val topRight: Pair<Float, Float>,
-        val bottomRight: Pair<Float, Float>,
-        val bottomLeft: Pair<Float, Float>
-    )
+    /**
+     * Perspective warp — maps the 4 source corners to a flat rectangle.
+     * Output bitmap dimensions are computed from physical corner distances
+     * to avoid stretching (see ASSESSMENT.md).
+     */
+    fun warpPerspective(bitmap: Bitmap, srcPoints: List<PointF>): Bitmap {
+        val (tl, tr, br, bl) = srcPoints
 
-    fun detectDocumentBorders(bitmap: Bitmap): DocumentBorders? {
-        // Simplified border detection using edge sampling
-        // A full implementation would use OpenCV's findContours
-        val width = bitmap.width
-        val height = bitmap.height
+        val widthA = hypot((br.x - bl.x).toDouble(), (br.y - bl.y).toDouble())
+        val widthB = hypot((tr.x - tl.x).toDouble(), (tr.y - tl.y).toDouble())
+        val maxWidth = max(widthA, widthB).toInt().coerceAtLeast(1)
 
-        return DocumentBorders(
-            topLeft = Pair(width * 0.05f, height * 0.05f),
-            topRight = Pair(width * 0.95f, height * 0.05f),
-            bottomRight = Pair(width * 0.95f, height * 0.95f),
-            bottomLeft = Pair(width * 0.05f, height * 0.95f)
+        val heightA = hypot((tr.x - br.x).toDouble(), (tr.y - br.y).toDouble())
+        val heightB = hypot((tl.x - bl.x).toDouble(), (tl.y - bl.y).toDouble())
+        val maxHeight = max(heightA, heightB).toInt().coerceAtLeast(1)
+
+        val src = floatArrayOf(tl.x, tl.y, tr.x, tr.y, br.x, br.y, bl.x, bl.y)
+        val dst = floatArrayOf(
+            0f, 0f,
+            maxWidth.toFloat(), 0f,
+            maxWidth.toFloat(), maxHeight.toFloat(),
+            0f, maxHeight.toFloat()
         )
+
+        val matrix = Matrix().apply { setPolyToPoly(src, 0, dst, 0, 4) }
+        val result = Bitmap.createBitmap(maxWidth, maxHeight, Bitmap.Config.ARGB_8888)
+        Canvas(result).drawBitmap(bitmap, matrix, Paint(Paint.FILTER_BITMAP_FLAG))
+        return result
+    }
+
+    /**
+     * Standard rectangular crop with normalized coordinates.
+     */
+    fun standardCrop(bitmap: Bitmap, normRect: RectF): Bitmap {
+        val left = (normRect.left * bitmap.width).toInt().coerceIn(0, bitmap.width - 1)
+        val top = (normRect.top * bitmap.height).toInt().coerceIn(0, bitmap.height - 1)
+        val right = (normRect.right * bitmap.width).toInt().coerceIn(left + 1, bitmap.width)
+        val bottom = (normRect.bottom * bitmap.height).toInt().coerceIn(top + 1, bitmap.height)
+        return Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
+    }
+
+    /**
+     * Returns normalized (0..1) corner positions.
+     * Currently returns 10%-inset rectangle; OpenCV integration will
+     * replace this with contour-based detection.
+     */
+    fun detectDocumentBorders(bitmap: Bitmap): List<PointF> {
+        return listOf(
+            PointF(0.05f, 0.05f),
+            PointF(0.95f, 0.05f),
+            PointF(0.95f, 0.95f),
+            PointF(0.05f, 0.95f)
+        )
+    }
+
+    /**
+     * Load a downscaled bitmap for UI display (avoids OOM on 50MP photos).
+     */
+    fun loadDownscaled(path: String, maxDimension: Int = 1080): Bitmap? {
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(path, opts)
+        val scale = maxOf(opts.outWidth, opts.outHeight) / maxDimension
+        opts.inSampleSize = scale.coerceAtLeast(1)
+        opts.inJustDecodeBounds = false
+        return BitmapFactory.decodeFile(path, opts)
     }
 }

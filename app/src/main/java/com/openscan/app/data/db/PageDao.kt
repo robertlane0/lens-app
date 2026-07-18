@@ -42,6 +42,12 @@ interface PageDao {
         enhancedPath: String?
     )
 
+    @Query("""
+        UPDATE pages SET cropPoints = :cropPoints, cropRect = :cropRect, 
+        perspectivePath = :perspectivePath WHERE id = :id
+    """)
+    suspend fun updatePageCrop(id: Long, cropPoints: String?, cropRect: String?, perspectivePath: String?)
+
     @Query("SELECT MAX(pageNumber) FROM pages WHERE documentId = :documentId")
     suspend fun getMaxPageNumber(documentId: Long): Int?
 }

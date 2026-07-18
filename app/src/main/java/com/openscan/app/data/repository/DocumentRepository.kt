@@ -41,6 +41,10 @@ class DocumentRepository @Inject constructor(
         id: Long, rotation: Int, filterType: String, enhancedPath: String?
     ) = pageDao.updatePageEnhancements(id, rotation, filterType, enhancedPath)
 
+    suspend fun updatePageCrop(
+        id: Long, cropPoints: String?, cropRect: String?, perspectivePath: String?
+    ) = pageDao.updatePageCrop(id, cropPoints, cropRect, perspectivePath)
+
     suspend fun getMaxPageNumber(documentId: Long): Int? =
         pageDao.getMaxPageNumber(documentId)
 }
