@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -70,6 +71,9 @@ fun CropScreen(
                 },
                 actions = {
                     if (state.stage == CropStage.STANDARD) {
+                        IconButton(onClick = { viewModel.redoPerspective() }) {
+                            Icon(Icons.Default.Replay, contentDescription = "Adjust corners")
+                        }
                         IconButton(onClick = { viewModel.saveCrop(onNavigateBack) }) {
                             Icon(Icons.Default.Check, contentDescription = "Save")
                         }

@@ -14,21 +14,21 @@
 
 ## Key Design Decisions
 
-### Why Not Yet OpenCV?
+### OpenCV Integration
 
 The original implementation plan called for OpenCV for contour-based document detection and perspective correction. Current state:
 
-- **Perspective correction** was implemented using Android's built-in `Matrix.setPolyToPoly()` + `Bitmap.createBitmap()`, which handles 4-point perspective transforms natively
-- **Document border detection** is not yet implemented — a placeholder (`detectDocumentBorders` returns 10% inset rectangle) exists, and users manually drag corners in the Crop screen
-- **OpenCV integration** is deferred to a future iteration; the ~20 MB native library size needs careful evaluation per architecture
+- **Perspective correction** uses Android's built-in `Matrix.setPolyToPoly()` + `Bitmap.createBitmap()`, which handles 4-point perspective transforms natively. This did not need OpenCV and was kept as-is.
+- **Document border detection** now uses OpenCV (`org.opencv:opencv`, published to Maven Central) for contour-based largest-rectangle detection (see `image/DocumentDetector.kt`): grayscale → blur → Canny edges → dilate → find contours → largest convex 4-point contour above an area threshold. When a confident quadrilateral is found, the Crop screen automatically runs the perspective warp; otherwise it falls back to a centered inset rectangle for manual corner adjustment.
+- OpenCV native libraries are loaded once at startup via `OpenCvSupport.init()` (called from `OpenScanApp.onCreate()`), using `OpenCVLoader.initLocal()` — fully local/offline, no OpenCV Manager or network dependency.
+- The `org.opencv:opencv` AAR adds noticeable APK size (bundles native `.so` files for multiple ABIs). This is a deliberate trade-off for reliable edge detection; ABI splitting or a slimmed custom build are options if size becomes a concern.
 
-### Why Not Yet Auto-Detect in Preview?
+### Why Not Auto-Detect in the Live Camera Preview
 
-Auto-document border detection in the camera preview has not yet been implemented:
-- Reliable detection requires either OpenCV (contour detection) or ML Kit (on-device model)
-- OpenCV adds significant APK size, which needs careful evaluation
-- ML Kit's on-device image labeling is not optimized for real-time document corner regression
-- Manual corner drag in the Crop screen provides precise results for now, with auto-detect planned as a future enhancement
+Auto-detection currently runs on the captured still image in the Crop screen, not on the live `PreviewView` frame stream:
+- Running the same OpenCV pipeline per camera frame would need a `CameraX ImageAnalysis` use case and careful throttling/threading to avoid janking the preview — a larger change than detecting on the single captured photo.
+- Detecting once on the full-resolution capture (rather than on downscaled, motion-blurred preview frames) gives more reliable corners.
+- Live-preview auto-detect remains a reasonable future enhancement built on top of the same `DocumentDetector`.
 
 ### State Machine vs NavController
 

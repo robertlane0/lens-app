@@ -143,17 +143,15 @@ class ImageProcessor(private val context: Context) {
     }
 
     /**
-     * Returns normalized (0..1) corner positions.
-     * Currently returns 10%-inset rectangle; OpenCV integration will
-     * replace this with contour-based detection.
+     * Automatically locates the document's edges using OpenCV contour
+     * detection (see [DocumentDetector]) and returns normalized (0..1)
+     * corner positions in TL, TR, BR, BL order, along with whether a
+     * confident quadrilateral was actually found. Falls back to a centered
+     * inset rectangle when detection doesn't find one, so the crop screen
+     * always has a usable starting point for manual adjustment.
      */
-    fun detectDocumentBorders(bitmap: Bitmap): List<PointF> {
-        return listOf(
-            PointF(0.05f, 0.05f),
-            PointF(0.95f, 0.05f),
-            PointF(0.95f, 0.95f),
-            PointF(0.05f, 0.95f)
-        )
+    fun detectDocumentBorders(bitmap: Bitmap): DetectedCorners {
+        return DocumentDetector.detect(bitmap)
     }
 
     /**

@@ -57,8 +57,8 @@ flowchart LR
 | **UI** | Jetpack Compose + Material 3 |
 | **DI** | Hilt 2.53.1 |
 | **Camera** | CameraX 1.4.1 |
-| **Document detection** | Manual corner drag in Crop screen (auto-detection not yet implemented) |
-| **Image processing** | Android `Bitmap` + `Matrix` + `ColorMatrix` (no OpenCV) |
+| **Document detection** | OpenCV contour detection (largest-rectangle) auto-fills corners; manual drag remains available for correction |
+| **Image processing** | Android `Bitmap` + `Matrix` + `ColorMatrix`; OpenCV (`org.opencv:opencv`) for edge/contour detection only |
 | **PDF export** | Android `PdfDocument` API (built-in) |
 | **OCR** | ML Kit Text Recognition 16.0.1 (on-device) |
 | **Barcode/QR** | ML Kit Barcode Scanning 17.3.0 (on-device) |
@@ -72,12 +72,12 @@ flowchart LR
 
 | Planned | Actual | Reason |
 |---------|--------|--------|
-| OpenCV for border detection | Not yet integrated; manual corner drag in CropScreen | Contour auto-detection planned for a future iteration |
-| OpenCV for perspective warp | `ImageProcessor.warpPerspective` using `Matrix.setPolyToPoly` | Android built-in API handles 4-point perspective transform |
-| Auto-detect document borders | Not yet implemented (`detectDocumentBorders` returns 10% inset) | Placeholder awaiting contour detection integration |
+| OpenCV for border detection | Implemented in `image/DocumentDetector.kt` — Canny edges + contour analysis, largest convex 4-point quad | Matches original plan |
+| OpenCV for perspective warp | `ImageProcessor.warpPerspective` using `Matrix.setPolyToPoly` | Android built-in API handles 4-point perspective transform well; OpenCV not needed here |
+| Auto-detect document borders | Implemented: confident detections auto-apply the perspective crop; low-confidence falls back to a manual inset rectangle | `CropViewModel.loadPage` |
 | ML Kit ImageAnalysis for barcode | Separate `BarcodeScanner` class; not integrated into live preview | Post-capture barcode scanning on the captured bitmap |
 | Reorder with drag-and-drop library | Not implemented; `movePage` available in ReviewViewModel | Page reorder API exists but no drag-and-drop UI |
-| OpenCV dependency | Not yet included | OpenCV integration planned for auto edge detection |
+| OpenCV dependency | Included (`org.opencv:opencv` via Maven Central) | Used for contour-based edge detection |
 
 ## Feature Implementation Status
 
@@ -88,6 +88,7 @@ flowchart LR
 - Review screen with page navigation and thumbnail strip
 - Edit screen with rotate + filters (Original, Grayscale, Document)
 - Crop screen with two-stage crop: perspective (4-corner drag) + standard (rectangle)
+- Automatic document edge detection (OpenCV contour analysis) with auto-applied perspective crop on confident detections
 - OCR text extraction (post-capture)
 - Barcode/QR scanning (post-capture)
 - PDF export via `android.graphics.pdf.PdfDocument`
@@ -103,9 +104,8 @@ flowchart LR
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Auto document border detection in preview | Not yet implemented | `detectDocumentBorders` returns inset rect; manual crop only; OpenCV integration planned |
+| Auto document border detection in live camera preview | Not implemented | Detection runs on the captured photo in the Crop screen (`DocumentDetector`), not per preview frame; see `docs/findings.md` |
 | Page reorder drag-and-drop UI | Backend only | `ReviewViewModel.movePage` exists; no UI gesture |
-| OpenCV integration | Not yet integrated | Auto edge detection planned for crop screen |
 | ONNX / ML-based document classification | Not implemented | Not needed for v1 |
 | Auto-capture on stable border detection | Not implemented | Manual capture only |
 | Aspect ratio presets in crop | Not implemented | Free-form crop only |

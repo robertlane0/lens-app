@@ -93,7 +93,7 @@ Managed through `gradle/libs.versions.toml`.
 | Navigation | Compose Navigation 2.8.5 |
 | Images | Coil 2.7.0 |
 | PDF Export | `android.graphics.pdf.PdfDocument` |
-| Image Processing | Android `Bitmap`, `Matrix`, `ColorMatrix` |
+| Image Processing | Android `Bitmap`, `Matrix`, `ColorMatrix`; OpenCV (`org.opencv:opencv`) for document edge detection |
 
 Room and Hilt use **KSP** for annotation processing.
 

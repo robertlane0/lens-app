@@ -82,4 +82,7 @@ dependencies {
 
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.barcode.scanning)
+
+    // Contour-based document edge detection in the Crop screen.
+    implementation(libs.opencv)
 }

@@ -58,15 +58,18 @@ class CropViewModel @Inject constructor(
                 imageProcessor.loadDownscaled(sourcePath)
             }
 
-            val initialCorners = if (p.cropPoints != null) {
-                parseCorners(p.cropPoints)
+            val hasSavedCrop = p.cropPoints != null
+            var autoApplyPerspective = false
+
+            val initialCorners = if (hasSavedCrop) {
+                parseCorners(p.cropPoints!!)
             } else {
                 withContext(Dispatchers.IO) {
                     val full = BitmapFactoryUtils.decodeFile(sourcePath)
                     if (full != null) {
-                        imageProcessor.detectDocumentBorders(full).map { pt ->
-                            Offset(pt.x, pt.y)
-                        }
+                        val detected = imageProcessor.detectDocumentBorders(full)
+                        autoApplyPerspective = detected.found
+                        detected.corners.map { pt -> Offset(pt.x, pt.y) }
                     } else {
                         listOf(
                             Offset(0.05f, 0.05f),
@@ -92,6 +95,14 @@ class CropViewModel @Inject constructor(
                 corners = initialCorners,
                 cropRect = initialRect
             )
+
+            // A confidently detected document gets its perspective crop
+            // applied right away; a low-confidence/failed detection falls
+            // back to the default inset rectangle and waits for the user
+            // to line the corners up manually.
+            if (autoApplyPerspective) {
+                applyPerspectiveCorrection {}
+            }
         }
     }
 
@@ -151,6 +162,35 @@ class CropViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * Returns to the perspective stage with the same corners that produced
+     * the current crop, so a user can nudge an imperfect auto-detection
+     * (or redo a manual one) instead of starting over from scratch.
+     */
+    fun redoPerspective() {
+        val p = page ?: return
+        val previousCorners = _state.value.corners
+
+        viewModelScope.launch {
+            _state.value = _state.value.copy(isLoading = true)
+
+            val fullOpts = BitmapFactoryUtils.decodeBounds(p.imagePath)
+            val display = withContext(Dispatchers.IO) {
+                imageProcessor.loadDownscaled(p.imagePath)
+            }
+
+            _state.value = CropState(
+                stage = CropStage.PERSPECTIVE,
+                isLoading = false,
+                displayBitmap = display,
+                originalWidth = fullOpts.width,
+                originalHeight = fullOpts.height,
+                corners = previousCorners,
+                cropRect = RectF(0f, 0f, 1f, 1f)
+            )
         }
     }
 
