@@ -179,3 +179,89 @@ The task is complete only when:
 - the application's architecture has been documented,
 - significant implementation details have been explained,
 - and the resulting Markdown documentation is organized, readable, and suitable as technical reference material.
+
+---
+
+# Phase 2: New Open-Source Implementation Plan
+
+Using the reverse-engineering documentation in `docs/` as reference, produce a detailed implementation plan for a **new open-source document-scanning Android application** with the following constraints:
+
+## Constraints
+
+1. **No Microsoft code, libraries, SDKs, or trademarks** — the app must be built entirely from open-source components.
+2. **No cloud features** — everything runs locally on-device. No sync, no cloud upload/download, no remote APIs.
+3. **No accounts, authentication, or sign-in** — zero user identity required.
+4. **Export formats only**: **PDF** and **image files** (PNG/JPEG). No Word, PPTX, OneNote, or any other format.
+5. **No Intune, no MDM, no enterprise management** — the app is consumer-only.
+6. **No telemetry, analytics, or crash reporting** — no data leaves the device.
+7. **No license verification or DRM** — fully free and open source.
+
+## Recommended Plan Structure
+
+Write a new document `docs/implementation-plan.md` that covers:
+
+### 1. Scope
+- Feature set — exactly what the app does and doesn't do (be precise about exclusions).
+
+### 2. Architecture
+- Proposed architecture (component-based, MVVM, or similar).
+- How to replace the Microsoft Lens component system with a simpler state-machine-based flow.
+
+### 3. Technology Stack Recommendations
+- Camera API: CameraX (already open-source).
+- ML: OpenCV, Google ML Kit (on-device only), or TensorFlow Lite for document border detection and image enhancement.
+- PDF export: Android `PdfDocument` API or iText / Apache PDFBox (open-source).
+- Image processing: OpenCV, Android `Bitmap` APIs, or `RenderScript`.
+- UI: Jetpack Compose or XML layouts.
+- Storage: Room or plain file-based.
+- Build: AGP + Kotlin + Gradle.
+- Do **not** recommend: Retrofit, OkHttp, Gson, or any networking library (no network calls).
+
+### 4. Feature Implementations
+For each feature from the original Lens app that you plan to keep:
+- Capture (camera with auto-detect)
+- Image enhancement (auto-crop, perspective correction, filters)
+- Crop/edit
+- Reorder pages
+- Export to PDF/images
+- Gallery/recent items
+- Barcode and QR scanning
+- Immersive Reader
+
+Describe how each would work **without** any of Microsoft's code, cloud services, or authentication.
+
+For features you are **removing** (Business Cards, OneNote, Word export, Copilot, cloud sync, account management, telemetry, etc.), explicitly list them as out of scope.
+
+### 5. Removed Features Checklist
+An explicit list of every Lens feature to remove, with notes on what replaces it (or why it is deleted entirely).
+
+### 6. UI Screens (from docs/ui.md)
+Map each original screen to its replacement:
+- Which screens remain (with modifications)?
+- Which screens are deleted entirely?
+- Which new screens are needed?
+
+### 7. Data Model
+- Document model, page model, image storage.
+- No cloud-backed data structures. Everything local.
+
+### 8. File Format
+- The on-device file format for saved scans (PDF with embedded images).
+- No proprietary `.document` or `.per` files.
+
+### 9. Dependencies
+- Complete list of open-source libraries to use.
+- Which dependencies from the original app to drop.
+
+### 10. Development Roadmap
+- Suggested phases for building the app incrementally.
+
+## Working Practices
+
+- Base every decision on the reverse-engineering docs in `docs/`.
+- Every plan entry should state whether it is **Kept**, **Modified**, or **Removed** relative to the original Lens app.
+- Be explicit about scope boundaries — "out of scope" is better than vague.
+
+## Deliverable
+
+A single file `docs/implementation-plan.md` that another developer could follow to build the app from scratch.
