@@ -2,230 +2,99 @@
 
 ## Overview
 
-Lens uses multiple storage mechanisms depending on data type:
+OpenScan uses two storage mechanisms:
 
 ```mermaid
 flowchart TD
-    A[Storage Layer] --> B[Room DB]
-    A --> C[SQLiteOpenHelper]
-    A --> D[SharedPreferences]
-    A --> E[File System]
-    A --> F[Encrypted Storage]
-    B --> G[Registry.db]
-    C --> H[RecentEntry.db]
-    D --> I[Session Data]
-    D --> J[Account Data]
-    D --> K[Privacy Preferences]
-    D --> L[First Run State]
-    E --> M[Document Properties]
-    E --> N[Image Files]
-    E --> O[DataModel JSON]
-    E --> P[PDF Cache]
-    F --> Q[EncryptedSharedPrefs]
-    F --> R[KeyStore-backed Keys]
+    A[Storage Layer] --> B[Room Database]
+    A --> C[File System]
+    B --> D[openscan.db]
+    D --> E[documents table]
+    D --> F[pages table]
+    C --> G[captured/ directory]
+    C --> H[exports/ directory]
+    C --> I[thumbnails/ (in captured/)]
 ```
 
 ## Room Database
 
-### Registry.db
+### openscan.db (Version 2)
 
-A platform-level registry database used by Office shared components.
+#### Table: documents
 
-**Table: RegistryKey**
 | Column | Type | Notes |
 |--------|------|-------|
-| `id` | INTEGER | PK, autoincrement |
-| `name` | TEXT | Collate NOCASE |
-| `parent_id` | INTEGER | FK to self |
+| `id` | INTEGER (PK) | Auto-generate |
+| `title` | TEXT | Document title |
+| `createdAt` | INTEGER | Unix timestamp (ms) |
+| `updatedAt` | INTEGER | Unix timestamp (ms) |
+| `pageCount` | INTEGER | Number of pages |
+| `thumbnailPath` | TEXT (nullable) | Path to thumbnail image |
 
-**Table: RegistryValue**
+#### Table: pages
+
 | Column | Type | Notes |
 |--------|------|-------|
-| `id` | INTEGER | PK, autoincrement |
-| `key_id` | INTEGER | FK to RegistryKey |
-| `name` | TEXT | Collate NOCASE |
-| `type` | INTEGER | Enum: RegistryValueType |
-| `data` | TEXT | Serialized value |
+| `id` | INTEGER (PK) | Auto-generate |
+| `documentId` | INTEGER (FK) | References documents.id, CASCADE delete |
+| `pageNumber` | INTEGER | Order within document |
+| `imagePath` | TEXT | Path to original captured image |
+| `enhancedPath` | TEXT (nullable) | Path to enhanced version |
+| `rotation` | INTEGER | Rotation in degrees (0, 90, 180, 270) |
+| `filterType` | TEXT | "original", "grayscale", or "document" |
+| `cropPoints` | TEXT (nullable) | Serialized corner points for perspective crop |
+| `cropRect` | TEXT (nullable) | Serialized standard crop rectangle |
+| `perspectivePath` | TEXT (nullable) | Path to perspective-corrected image |
 
-**Table: RegistryDBStatus**
-| Column | Type |
-|--------|------|
-| `id` | INTEGER |
-| `status` | TEXT (UNIQUE) |
+**Index**: `idx_pages_documentId` on `documentId`.
 
-**Table: RegistryUpdate**
-| Column | Type |
-|--------|------|
-| `id` | INTEGER |
-| `last_update_process_id` | INTEGER |
-| `last_update_time` | INTEGER |
+**Migration**: Version 2 uses `fallbackToDestructiveMigration()` (no production data migration).
 
-## SQLite Database
+## File System
 
-### RecentEntry.db (Version 11)
-
-```sql
-CREATE TABLE recent_entry (
-    _id INTEGER PRIMARY KEY,
-    title TEXT,
-    date_added INTEGER,
-    service TEXT,
-    state INTEGER,
-    image_filename TEXT,
-    task_id TEXT,
-    client_url TEXT,
-    web_url TEXT,
-    embed_url TEXT,
-    dav_url TEXT,
-    download_url TEXT,
-    owner TEXT,
-    caption TEXT,
-    item_id TEXT,
-    thumbnail_name TEXT,
-    downloaded_filename TEXT,
-    filename_location TEXT
-);
-```
-
-Used by: `RecentEntryDbHelper`, `UploadTaskManager`, `ThumbnailHelper`, `RecentEntryAdapter`
-
-## SharedPreferences
-
-### Named Preference Files
-
-| File | Content |
-|------|---------|
-| `SessionManager` | Editing document ID, last bucket ID |
-| `LENSHVCSESSIONID` | HVC session IDs |
-| `LENSHVCINTUNEIDENTITY` | Session UUID → MAM identity mapping |
-| `LENSHVCIMAGEPRESENT` | Session UUID → image presence flag |
-| `fre.preference` | First-run experience state |
-| `whatNewFre.preference` | What's new FRE version |
-| `STORAGEPATH` | Temp storage directory path |
-| `nextLaunchIsClean` | Cleanup-on-launch flag |
-
-### Account Preferences (Default SharedPreferences)
-
-| Key | Type | Purpose |
-|-----|------|---------|
-| `selected_account` | String | Selected account ID |
-| `selected_account_display_name` | String | Display name |
-| `selected_account_first_name` | String | First name |
-| `selected_account_type` | int | AccountType enum |
-| `signed_in_accounts` | String | JSON-serialized IdentityMetaDataList |
-| `signed_out_accounts` | String | JSON-serialized AccountList |
-| `private_synced_urls` | String | JSON-serialized SyncedUrlMap |
-| `edog_custom_url` | String | Debug endpoint override |
-
-### Privacy Preferences (Default SharedPreferences)
-
-| Key | Purpose |
-|-----|---------|
-| `olAnalyzeContent` | Remote analysis opt-in |
-| `privacy_option_analyze_content_local` | Local analysis opt-in |
-| `olDiagnosticLevel` | Telemetry level (0=none, 1=required, 2=full) |
-| `olDownloadContent` | Content download opt-in |
-| `olCCS` | Connected Content Services consent |
-| `olCCSAllowed` | CCS roaming allowed |
-| `olSettingsMigrated` | First-run settings migration flag |
-
-### First Run Preferences (`fre.preference`)
-
-| Key | Purpose |
-|-----|---------|
-| `freVersionSeen` | Last FRE version shown |
-| `FirstTimeUser` | Whether user is first-time |
-| `IsNewUserForCaptureFlow` | New capture flow flag |
-| `accepted.use.terms.version` | Accepted TOS version |
-| Per-workflow booleans | Per-workflow FRE completion |
-
-### Feature Gates
-
-The app uses ramp flags and feature gates stored in the Registry database and SharedPreferences, including:
-- `EnableSslPinning` — certificate pinning for business accounts
-- `RevertOkHttpConnectionPoolIncrease` — connection pool behavior
-- Various `DeviceConfig` entries for premium feature flags
-
-## File-Based Storage
-
-### Document Storage
-
-Documents are stored as Java `.properties` files:
+### Directory Structure
 
 ```
-{filesDir}/documents/{uuid}.document
+{appFilesDir}/
+  captured/
+    capture_<timestamp>.jpg      # Original captured image
+    enhanced_<pageId>.jpg        # After filter/rotation enhancement
+    persp_<pageId>.jpg           # After perspective correction
+  exports/
+    <title>.pdf                  # Exported PDF
+    <title>/                     # Exported multi-image folder
+      page_001.jpg
+      page_002.jpg
+  cache/                         # Android cache (temp export files)
 ```
 
-Format:
-```properties
-images.0=<image-uuid>
-images.1=<image-uuid>
-```
+### FileProvider Paths
 
-### Data Model Persistence
+Defined in `res/xml/file_paths.xml`:
 
-Session document models are persisted as JSON:
-
-```
-{rootPath}/per/{uuid}.json
-```
-
-Serialized via `DataModelSerializer` with `Page` and `Document` types.
-
-### Image Files
-
-| Type | Path |
+| Path | Type |
 |------|------|
-| Captured images | `{filesDir}/images/` |
-| Uploads | `{filesDir}/uploads/` |
-| OCR | `{filesDir}/ocr/` |
-| PDF output | `Documents/Office Lens/` (external) |
-| Gallery save | `Pictures/Office Lens/` (external) |
-| Share cache | `{cacheDir}/sharePdf/` |
-| Business card downloads | `Downloads/OfficeLens/` |
+| `captured/` | `files-path` — internal captured images |
+| `exports/` | `files-path` — exported PDFs/images |
+| Cache root | `cache-path` — temporary export sharing |
 
-## Encrypted Storage
+## Data Access
 
-### Encryption Key Hierarchy
+`DocumentRepository` (`data/repository/DocumentRepository.kt`) is the single point of data access. It wraps both DAOs:
 
-```
-Android KeyStore (hardware-backed)
-  └─ MasterKey (AES-256 GCM)
-       └─ EncryptedSharedPreferences
-            ├─ Account tokens
-            ├─ ADAL token cache
-            └─ Sensitive settings
-```
+- **DocumentDao**: `getAllDocuments` (Flow), `getDocumentById`, `insertDocument`, `updateDocument`, `deleteDocument`, `updatePageCount`, `updateThumbnail`
+- **PageDao**: `getPagesForDocument`, `getPageById`, `insertPage`, `updatePage`, `deletePage`, `deletePagesForDocument`, `updatePageNumber`, `updatePageEnhancements`, `updatePageCrop`, `getMaxPageNumber`
 
-### CryptoUtils
+## Image Storage Strategy
 
-| Parameter | Value |
-|-----------|-------|
-| Algorithm | AES/CBC/PKCS5Padding |
-| Key derivation | SHA-256 |
-| Seed | SecureRandom (SHA1PRNG), 16 bytes |
-| Legacy fallback | AES/ECB/NoPadding |
+| File | When Created | Usage |
+|------|-------------|-------|
+| `capture_<timestamp>.jpg` | Camera capture | Original source image |
+| `enhanced_<pageId>.jpg` | Edit screen save | Filtered/rotated version for export |
+| `persp_<pageId>.jpg` | Crop screen apply | Perspective-corrected version for export |
 
-### ADAL Cache Encryption
+Export uses the most processed version available: `perspectivePath` → `enhancedPath` → `imagePath`.
 
-- Algorithm: PBEWith SHA256
-- Iterations: 100
-- Salt: `"com.microsoft.office.onenote"`
-- Key size: 256-bit AES
+## No SharedPreferences for Document Data
 
-## Cache Management
-
-- **Startup cleanup**: Deletes `STORAGEPATH` directory contents
-- **Session cleanup**: `SessionManager.clearSdkSession()` clears HVC session caches
-- **Document deletion**: Removes `per/` directory and `.document` files
-- **Gallery cleanup**: `RecentEntryAdapter` cleans up `Pictures/Office Lens` and `Documents/Office Lens`
-
-## Serialization
-
-| Library | Usage |
-|---------|-------|
-| Gson | Account data, EncryptionResult, Registry JSON export |
-| org.json | REST API responses, auto-discovery, share intents |
-| Java Properties | DocumentDao entity storage |
-| DataModelSerializer | Custom Kotlin serializer for document model JSON |
-| Moshi | Available but not used by app code |
+Unlike the original Lens app, OpenScan does not use SharedPreferences for document metadata. All structured data lives in Room. Preferences are only used implicitly by Android/Compose framework components.

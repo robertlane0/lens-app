@@ -1,145 +1,105 @@
-# Findings & Observations
+# Project Findings & Design Decisions
 
 ## Build Information
 
 | Property | Value |
 |----------|-------|
-| Android Gradle Plugin | 8.5.1 |
-| Kotlin Multiplatform | Confirmed (iOS arm64 targets in project metadata) |
-| Minification | ProGuard/R8 enabled (resource name obfuscation observed) |
-| Debuggable | No (production build) |
-| Test instrumentation | `android.test.InstrumentationTestRunner` with target `com.microsoft.office.msohttp.tests` |
+| Android Gradle Plugin | 8.7.3 |
+| Kotlin | 2.1.0 |
+| KSP | 2.1.0-1.0.29 |
+| Gradle | 8.11.1 |
+| Minification | ProGuard/R8 enabled in release |
+| Debuggable | Yes (debug builds) |
+| JVM Target | 17 |
 
-## Third-Party Dependencies
+## Key Design Decisions
 
-### Major SDKs
+### Why No OpenCV?
 
-| SDK | Purpose |
-|-----|---------|
-| Google Play Services (auth, fido, mlkit, tflite) | Auth, ML, FIDO2 |
-| Firebase (ML Kit, transport) | ML and telemetry |
-| Microsoft Intune MAM SDK | Enterprise MDM |
-| Microsoft Authentication Library (MSAL/ADAL) | Auth |
-| Microsoft Token Sharing SDK | Cross-app SSO |
-| Microsoft App Center / HockeyApp | Crash reporting |
-| Microsoft Aria/EVT | Telemetry |
-| Microsoft ODSP | OneDrive/SharePoint |
-| OkHttp / Retrofit 2 / Moshi / Gson | Networking/serialization |
-| AndroidX (Room, WorkManager, CameraX, DataStore, SecurityCrypto) | Various |
-| Apache PDFBox (tom_roush port) | PDF generation |
-| YubiKit (Yubico) | Hardware 2FA |
-| Lottie (Airbnb) | Animations |
-| Square LeakCanary | Memory leak detection |
-| Nimbus JOSE+JWT | JWT handling |
-| SpongyCastle | Crypto primitives |
-| Bolts (Facebook) | Task/continuation patterns |
-| OpenTelemetry | Distributed tracing |
-| Kotlinx Coroutines | Async programming |
+The original implementation plan called for OpenCV for contour-based document detection and perspective correction. In practice:
 
-### ONNX Runtime Models
+- **Perspective correction** was implemented using Android's built-in `Matrix.setPolyToPoly()` + `Bitmap.createBitmap()`, which handles 4-point perspective transforms natively
+- **Document border detection** was reduced to a placeholder (`detectDocumentBorders` returns 10% inset rectangle) — users manually drag corners in the Crop screen
+- **Benefit**: Avoids ~20 MB of native library bloat per architecture
 
-| Model | Size | Purpose |
-|-------|------|---------|
-| `mnv2_ep42_wb_quant.ort` | 342 KB | Quantized MobileNetV2 — image classification / document detection |
-| `triclass_doc_classifier.ort` | 204 KB | Three-class document type classifier (whiteboard, document, photo/business card) |
+### Why No Auto-Detect in Preview?
 
-### TensorFlow Lite Model
+Auto-document border detection in the camera preview was deprioritized because:
+- Reliable detection requires either OpenCV (contour detection) or ML Kit (on-device model)
+- OpenCV adds significant APK size
+- ML Kit's on-device image labeling is not optimized for real-time document corner regression
+- Manual corner drag in the Crop screen provides precise results without complex CV pipeline
 
-| Model | Size | Purpose |
-|-------|------|---------|
-| `clf_model.tflite` | 401 KB | Additional classifier (likely for text/label detection via ML Kit) |
+### State Machine vs NavController
 
-### Native Libraries (31 .so files, ~64 MB)
+The `LensStateMachine` sealed class hierarchy was designed early as the architectural workflow blueprint. However, ViewModels navigate imperatively through callbacks passed to composables, and the `NavController` handles all screen transitions directly. The state machine serves primarily as documentation of the intended workflow states rather than as a runtime state driver.
 
-All compiled for **armeabi-v7a (32-bit ARM)** only. No 64-bit or x86 variants.
+### No DataStore
 
-| Library | Size | Purpose |
-|---------|------|---------|
-| `libOfficeLens.so` | 5.9 MB | Core Lens native module |
-| `libmsoandroid.so` | 16.3 MB | Office shared platform |
-| `libmso20android.so` | 11.0 MB | Office 2.0 component |
-| `libmso30android.so` | 10.3 MB | Office 3.0 component |
-| `libmso40uiandroid.so` | 4.9 MB | Office UI component |
-| `libmso50android.so` | 2.3 MB | Office 5.0 component |
-| `libmso98android.so` | 1.3 MB | Office 9.8 component |
-| `libofficecrypto.so` | 1.0 MB | Document encryption |
-| `libofficessl.so` | 936 KB | SSL/TLS networking |
-| `libskiaoffice.so` | 1.4 MB | Skia graphics (Office fork) |
-| `libtensorflowlite_jni_gms_client.so` | 46 KB | TFLite GMS bridge |
-| `lib7zofficeassetdecoder.so` | 238 KB | 7z asset decompression |
+Room handles all structured data (documents, pages). There are no user preferences that require DataStore or SharedPreferences beyond what Compose/AndroidX provides internally.
 
-## Obfuscation Observations
+### No Background Work
 
-- **ProGuard/R8 applied**: Class and method names in smali appear obfuscated (`a`, `b`, `c`, etc.) in many packages
-- **String obfuscation**: Some strings may be encrypted at rest but are decrypted at runtime. Hardcoded strings (URLs, keys) visible in decompiled Java.
-- **Resource obfuscation**: Library entry `"0_resource_name_obfuscated"` observed
-- **Package splitting**: Code split across 6 smali directories (classes.dex through classes6.dex) indicating large app with multidex
-- **jadx decompilation errors**: 18 classes failed to decompile (likely obfuscated or containing unreachable control flow)
+All processing (image filtering, PDF generation, OCR) completes within a few hundred milliseconds on modern devices and runs on coroutine dispatchers (`Dispatchers.Default`/`Dispatchers.IO`). WorkManager is not needed.
 
-## Notable Findings
+## Source Code Metrics
 
-### 1. Architecture Quality
-- Well-structured component system with clear separation of concerns
-- ViewModel pattern used consistently with manual factories
-- Comprehensive telemetry instrumentation
-- Strong Intune MAM integration for enterprise scenarios
+| Metric | Value |
+|--------|-------|
+| Total Kotlin files | 35 |
+| Total lines of code | ~3,500 |
+| Largest file | `CropScreen.kt` (437 lines) |
+| Most complex file | `CropViewModel.kt` (243 lines) |
+| Package structure depth | 6 levels from root |
 
-### 2. Security Concerns
+## Dependencies Summary
 
-| Issue | Severity | Detail |
-|-------|----------|--------|
-| Hardcoded master key | Medium | Default AES key in CryptoCore: `E1tby7beW7Q0o1jBPOjOmMMJhJjpuBJOEPrQjhiqx5c=` |
-| Weak PBE iterations | Low | Only 100 iterations for ADAL cache key derivation |
-| Cleartext traffic | Low | `cleartextTrafficPermitted="true"` globally |
-| AllowAllHostnameVerifier | Low | Present in codebase (unlikely used in production) |
-| None algorithm JWT | Low | `JWSAlgorithm.none` supported (token sharing library) |
+From `gradle/libs.versions.toml`:
 
-### 3. Data Privacy
-- Consent framework via Reykjavik privacy SDK
-- GDPR-compliant consent flows
-- Telemetry levels configurable (0=off, 1=required, 2=full)
-- Privacy preferences roam across devices
+| Category | Libraries |
+|----------|-----------|
+| UI | Compose BOM 2024.12.01, Material 3, Navigation 2.8.5, Activity Compose 1.9.3 |
+| Camera | CameraX 1.4.1 (core, lifecycle, view) |
+| DI | Hilt 2.53.1 (Android + Compose navigation) |
+| Database | Room 2.6.1 (runtime, KTX, compiler via KSP) |
+| ML | ML Kit Text Recognition 16.0.1, Barcode Scanning 17.3.0 |
+| Images | Coil 2.7.0 |
+| Lifecycle | LiveData KTX, ViewModel Compose, Runtime Compose |
+| Coroutines | Kotlinx Coroutines 1.9.0 (core + Android) |
+| Core | Core KTX 1.15.0, SplashScreen 1.0.1 |
 
-### 4. Enterprise Readiness
-- Full Intune MAM integration
-- Certificate pinning for business accounts
-- Multi-identity support
-- Per-session MAM identity tracking
-- Compliance blocking with process termination
+## What Was Removed from Original Lens
 
-### 5. Cross-App Ecosystem
-- Token sharing with 57+ Microsoft applications
-- Signature-verified cross-app authentication
-- Shared Preference service for cross-app settings
-- Deep Office 365 ecosystem integration
+| Feature | Reason |
+|---------|--------|
+| Cloud sync (OneDrive/SharePoint/OneNote) | No cloud features |
+| Account management / sign-in | No identity required |
+| Intune MAM / enterprise MDM | Consumer app |
+| Telemetry (Aria, EVT, Nexus, HockeyApp, App Center) | Privacy by design |
+| Crash reporting | No data leaves device |
+| License verification / DRM | Fully FOSS |
+| Cross-app SSO / token sharing | Requires Microsoft ecosystem |
+| Business card recognition | Requires cloud entity extraction |
+| ONNX Runtime + TFLite models | Replaced by manual crop + Android SDK image processing |
+| 31 native .so files | 64 MB of ARM-only native code, all unnecessary |
+| Video capture | Out of scope |
+| Ink annotation / text stickers | Not core to scanning |
+| Immersive Reader / TTS | Android's built-in Select-to-Speak covers this |
+| Copilot / Bing Chat AI | Cloud-dependent Microsoft service |
+| DOCX / PPTX / OneNote export | Microsoft proprietary formats |
+| Foldable / Wear OS layouts | Not needed for initial release |
+| 337 XML layout files | Replaced by ~12 Compose files |
+| 626 drawable resources | Replaced by Material 3 theming + icons |
+| 110+ locale strings | English only (can be extended via community PRs) |
 
-### 6. Machine Learning
-- Hybrid ONNX Runtime + TensorFlow Lite approach
-- On-device document classification (whiteboard vs document vs photo)
-- ML Kit for text recognition and image labeling
-- No cloud-based ML model execution detected
+## Offline Capability
 
-### 7. Offline Capability
-- Capture and basic editing works offline
-- Uploads queued and retried when connectivity restored
-- License cached with offline grace period
+The app is fully offline by design. All features work without any network connectivity:
 
-### 8. Platform Support
-- **32-bit ARM only**: No 64-bit native libraries
-- **Foldable devices**: Dedicated support for Surface Duo
-- **Wear OS**: Layout variants present
-- **RTL**: Full right-to-left layout support
-- **Dark mode**: Full night theme support
-
-## Decompilation Success Rate
-
-| Tool | Classes | Success | Failed |
-|------|---------|---------|--------|
-| apktool (baksmali) | 6 DEX files | 100% | 0 |
-| jadx | 16,317 classes | 99.9% | 18 |
-
-The 18 failed classes are likely ProGuard-obfuscated or use features jadx cannot handle.
-
-## Screenshots
-
-No screenshots are available as the analysis was performed on a headless system without an Android emulator. All UI information is inferred from layout XML files, string resources, and source code analysis.
+- Camera capture
+- Image processing (rotate, filter, crop)
+- OCR (ML Kit on-device)
+- Barcode scanning (ML Kit on-device)
+- PDF/image export
+- Gallery browsing
+- Settings

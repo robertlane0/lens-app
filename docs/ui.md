@@ -2,166 +2,93 @@
 
 ## Overview
 
-Microsoft Lens has **337 layout XML files**, **626 drawable resources**, and supports **110+ locales**. The UI uses AppCompat Light theme with no action bar, brand orange primary color (`#d83b01`), and extensive custom styling prefixed `lenshvc_`.
+OpenScan uses **Jetpack Compose** with **Material 3** design. All UI is declarative, state-driven, and rendered within a single `MainActivity`. The app uses a green primary color scheme with dark/light theme support.
 
 ## Screen-by-Screen Walkthrough
 
-### 1. Splash Screen
+### 1. Home Screen
 
-- **Activity**: `MainActivity` with `@style/OfficeLensSplashTheme`
-- **Purpose**: App launch, initialization
-- **Transitions**: → First Run (if new user) → Main camera
+- **Route**: `HOME`
+- **File**: `ui/home/HomeScreen.kt`
+- **Layout**: Bottom navigation bar with three tabs: Scan (camera), Gallery (grid), Settings (gear)
+- **Default tab**: Scan (launches CaptureScreen embedded in the tab)
 
-### 2. First Run Experience
+### 2. Capture Screen
 
-- **Activity**: `FirstRunActivity` with `@style/OfficeLensFirstRunTheme`
-- **Fragments**:
-  - `FrePrivacyFragment` — privacy consent
-  - `UseTermsFragment` — terms of use acceptance
-  - `VideoExperienceFragment` — tutorial videos (`fre_video_pocket_scanner.mp4`, `fre_video_save_edit_go.mp4`)
-  - `WhatsNewFragment` — what's new in this version
-  - `VideoPageFragment` — individual video player
-  - `PermissionRequestActivity` — camera/storage permission grant
-- **Theme**: Portrait orientation, full-screen
-- **Controls**: Accept/Decline buttons, video player, page indicator
-- **State**: Tracks `freVersionSeen`, `FirstTimeUser`, `accepted.use.terms.version` in `fre.preference`
-
-### 3. Capture Screen (Main Camera)
-
-- **Activity**: `MainActivity` → `LensActivity` → `CaptureFragment`
-- **Layout**: `capture_fragment.xml`
+- **Route**: `CAPTURE`
+- **File**: `ui/capture/CaptureScreen.kt`
+- **ViewModel**: `CaptureViewModel`
 - **Controls**:
-  - Camera viewfinder (full-screen)
-  - Capture button (shutter)
-  - Mode selector (bottom sheet/picker): Document, Photo, Whiteboard, Business Card, QR Code, Video, Auto
-  - Flash toggle
-  - Gallery preview button (recent captures)
-  - Settings button (overflow menu)
-- **Overflow Menu** (`popup_menu_capture.xml`):
-  - Recent
-  - Settings
-- **Navigation**: Bottom (Recent, Mode, Gallery)
-- **Camera**: CameraX/Camera2 with auto-focus, tap-to-focus, pinch-to-zoom
-- **Auto-detection**: Automatic document/whiteboard border detection using ONNX models
+  - CameraX `PreviewView` via `AndroidView` composable
+  - Shutter FAB → captures photo to `captured/capture_<timestamp>.jpg`
+  - When pages > 0: "Done (N)" FAB → navigates to Review
+  - Flash toggle (auto/manual)
+  - Gallery preview thumbnail (last captured page)
+- **Permissions**: `CameraPermissionManager` composable wraps `ActivityResultContracts.RequestPermission`
+- **Data flow**: First capture creates a `Document` in Room; subsequent captures add `Page` records
 
-### 4. Post-Capture Screen
+### 3. Review Screen
 
-- **Activity**: `LensActivity` → `PostCaptureFragment`
-- **Layout**: `postcapture_fragment.xml`
-- **Controls**:
-  - Image preview with auto-crop overlay
-  - Re-capture button
-  - Accept button
-  - Color/grayscale filter selector
-  - Crop tool button
-  - Ink/annotation tools
-  - Text sticker tool
-  - Rotate controls
-- **Actions** (bottom bar): Re-take, Crop, Filters, Ink, Save
-- **Navigation**: Swipe or tap through multi-page captures
+- **Route**: `REVIEW/{documentId}`
+- **File**: `ui/review/ReviewScreen.kt`
+- **ViewModel**: `ReviewViewModel`
+- **Top bar**: Document title, Export (share icon), Delete (trash icon)
+- **Main area**: Selected page displayed via Coil `AsyncImage`
+- **Overlay buttons**: Crop (Tune icon), Edit (filters icon)
+- **Bottom bar**: "Add Page" button → returns to Capture
+- **Page strip**: `LazyRow` of page thumbnails with selection highlight and delete on each
+- **Dialogs**: `ExportDialog` (PDF/Images), OCR result dialog
+- **Actions**: OCR text extraction, barcode scanning on the displayed page
 
-### 5. Crop/Edit Screen
+### 4. Edit Screen
 
-- **Layout**: `crop_fragment_k2.xml`
-- **Controls**:
-  - Resizable crop rectangle with handles
-  - Aspect ratio presets
-  - Rotate slider
-  - Perspective correction
-  - Apply/Cancel buttons
-- **Filters**: Original, Color, Grayscale, Document mode
+- **Route**: `EDIT/{pageId}`
+- **File**: `ui/edit/EditScreen.kt`
+- **ViewModel**: `EditViewModel`
+- **Top bar**: Back arrow, Save (checkmark)
+- **Image display**: Filtered/rotated bitmap
+- **Filter chips**: Original, Grayscale, Document
+- **Rotate**: 90° clockwise button
+- **Logic**: Applies `ImageProcessor` filters (`toGrayscale`, `enhanceDocument`), persists via `updatePageEnhancements`
 
-### 6. Gallery / Recent Items
+### 5. Crop Screen
 
-- **Activity**: `ImmersiveGalleryActivity`
-- **Layout**: Grid view of recent captures
-- **Controls** (`recent_entry.xml` menu):
-  - Edit
-  - Share
-  - Delete
-- **Navigation**: Tap to view full-screen, swipe to navigate
-- **Data Source**: `RecentEntryDbHelper` (SQLite)
+- **Route**: `CROP/{pageId}`
+- **File**: `ui/crop/CropScreen.kt`
+- **ViewModel**: `CropViewModel`
+- **Two-stage crop**:
+  - **Stage 1 — Perspective**: 4 draggable corner handles on a Canvas to align with document edges. Applies `ImageProcessor.warpPerspective` to correct perspective.
+  - **Stage 2 — Standard**: Drag rectangle edges/corners for fine crop. Applies `ImageProcessor.standardCrop`.
+- **Gestures**: Canvas `drawRect` / `drawCircle` with `detectDragGestures`
+- **Persistence**: Saves crop points and rect via `updatePageCrop`
 
-### 7. Save Screen
+### 6. Gallery Screen
 
-- **Layout**: Bottom sheet / full-screen
-- **Options**:
-  - Save to device gallery
-  - Save to OneDrive/SharePoint
-  - Save to OneNote
-  - Share to other apps (PDF, images)
-  - Print
-  - Copy to clipboard
-- **Format options**: PDF, DOCX, PPTX, images (PNG/JPEG)
-- **Location picker**: OneDrive folder browser (`FolderListFragment`)
+- **Route**: `GALLERY`
+- **File**: `ui/gallery/GalleryScreen.kt`
+- **ViewModel**: `GalleryViewModel`
+- **Layout**: `LazyVerticalGrid` of document cards
+- **Thumbnails**: Loaded via Coil from `document.thumbnailPath`
+- **Empty state**: Icon + "No documents yet" text
+- **Tap**: Navigates to `REVIEW/{documentId}`
+
+### 7. Export Dialog
+
+- **File**: `ui/export/ExportDialog.kt`
+- **ViewModel**: `ExportViewModel`
+- **Options**: PDF button, Images button
+- **PDF**: Builds `PdfDocument` from page images (uses `enhancedPath` if available, falls back to `imagePath`)
+- **Images**: Writes pages as JPEG files
+- **Sharing**: Uses `ShareHelper` with `FileProvider` URIs and `ACTION_SEND`/`ACTION_SEND_MULTIPLE` intents
 
 ### 8. Settings Screen
 
-- **Activity**: `SettingsActivity`
-- **Fragments**: `SettingsFragment` (extends `PreferenceFragment`)
-- **Layout**: `preferences.xml`
-- **Sections**:
-  - **Account**: Signed-in account, add/remove account
-  - **Help & Support**: FAQ link, send feedback
-  - **About**: Version, copyright, licenses
-  - **Hidden**: EDOG URL (debug/internal endpoint)
-- **Actions**:
-  - Sign in / Sign out
-  - Clear cache
-  - Send feedback
-  - Privacy settings
-
-### 9. About Screen
-
-- **Activity**: `AboutActivity`
-- **Content**: App version, copyright, third-party licenses, privacy link
-
-### 10. Sign-In / Account Picker
-
-- **Activity**: `AccountPickerActivity`, `SignInWrapperActivity`
-- **Layout**: `account_picker_panel.xml` (bottom sheet)
-- **Controls**:
-  - Personal account (Microsoft Account)
-  - Business account (Azure AD / work/school)
-  - Add account button
-  - Sign out option
-- **Auth methods**: Microsoft SSO, device broker (Company Portal), username+password
-
-### 11. Immersive Reader
-
-- **Activity**: `IRActivity`
-- **Layout**: Full-screen reading experience
-- **Features**:
-  - Text-to-speech with playback controls
-  - Font size adjustment
-  - Line focus
-  - Grammar tools (syllables, parts of speech)
-  - Translation
-  - Picture dictionary
-
-### 12. Barcode Scanner
-
-- **Layout**: `BarcodeScanFragment`
-- **Features**:
-  - QR Code scanning
-  - Barcode scanning (various formats)
-  - Result bottom sheet: `qr_code_result_bottom_sheet_layout.xml`
-  - Copy result / Open URL / Share
-
-### 13. Business Card Screen
-
-- **Workflow**: ImageToEntity extraction
-- **Features**:
-  - Auto-detect contact fields
-  - Save to device contacts
-  - Export to Outlook/Exchange contacts
-  - Extract and display: name, phone, email, address, company, job title
-
-### 14. Copilot Integration
-
-- **Fragment**: `LensCopilotFragment`
-- **Integration**: Microsoft Copilot (Bing Chat Enterprise) for AI-powered document analysis
-- **Policy-controlled**: Requires Intune policy `BingChatEnterprise.IsAllowed`
+- **Route**: Settings tab in HomeScreen
+- **File**: `ui/settings/SettingsScreen.kt`
+- **Content**:
+  - App version name
+  - License (MIT)
+  - Privacy note (all processing is on-device)
 
 ## User Flows
 
@@ -169,63 +96,42 @@ Microsoft Lens has **337 layout XML files**, **626 drawable resources**, and sup
 
 ```mermaid
 flowchart TD
-    A[Launch App] --> B{First Run?}
-    B -->|Yes| C[First Run: Privacy → Permissions → Tutorial]
-    B -->|No| D[Camera Capture]
-    C --> D
-    D --> E[Auto-detect Content]
-    E --> F[Post-Capture Preview]
-    F --> G{Crop / Edit?}
-    G -->|Yes| H[Crop Edit Screen]
-    H --> F
-    G -->|No| I[Select Save Destination]
-    I --> J{Save to...}
-    J -->|Device| K[Save to Gallery/Documents]
-    J -->|OneDrive| L[OneDrive Upload]
-    J -->|OneNote| M[OneNote Page]
-    J -->|Share| N[Share via System]
-    K --> O[Recent Entries]
-    L --> O
-    M --> O
-    N --> O
+    A[HomeScreen] -->|Scan tab| B[CaptureScreen]
+    A -->|Gallery tab| C[GalleryScreen]
+    A -->|Settings tab| D[SettingsScreen]
+    B -->|Capture| E[ReviewScreen]
+    E -->|Edit| F[EditScreen]
+    E -->|Crop| G[CropScreen]
+    E -->|Add Page| B
+    E -->|Export| H[ExportDialog]
+    H -->|PDF/Images| I[Share Sheet]
+    F -->|Save| E
+    G -->|Apply| E
+    C -->|Tap document| E
 ```
 
-### Share-to-Lens Flow
+### Share-to-Scan Flow
 
 ```mermaid
 flowchart LR
     A[Other App] -->|Share Image| B[MainActivity]
-    B --> C[Capture Screen]
-    C --> D[Post-Capture]
-    D --> E[Save/Share]
+    B --> C[Capture flow]
+    C --> D[ReviewScreen]
 ```
 
 ## Dialogs
 
-| Dialog Fragment | Purpose |
-|-----------------|---------|
-| `ErrorDialogFragment` | Error messages |
-| `ProgressDialogFragment` | Loading/processing indicator |
-| `ProgressBarDialogFragment` | Progress bar for long operations |
-| `UpgradeDialogFragment` | Upgrade-to-premium prompts |
-| `GetPdfViewerDialogFragment` | PDF viewer installation prompt |
-| `OneNoteCrossSellDialogFragment` | OneNote cross-promotion |
-| `SendFeedbackDialogFragment` | Feedback form |
-| `PdfDialogFragment` | PDF utility dialogs |
-| `PdfOpenerFragment` | PDF opening progress |
-
-## Navigation & Menus
-
-- **Primary navigation**: Bottom bar / popup menu
-- **Overflow menu**: Settings, Recent
-- **Context menus**: Edit, Share, Delete on gallery items
-- **Bottom sheets**: Account picker, mode selector, save destination, QR results
+| Dialog | Purpose |
+|--------|---------|
+| `ExportDialog` | Format picker (PDF, Images) |
+| `OcrResultDialog` | Display recognized text |
+| `PermissionRequestView` | Camera permission rationale |
 
 ## Theming
 
-- **Primary**: `#d83b01` (Microsoft orange)
-- **Accent**: `#0078d4` (Microsoft blue)
-- **Dark mode variants**: Full night theme support (`values-night/`)
-- **RTL support**: Layout mirroring (`values-ldrtl/`, `drawable-ldrtl/`)
-- **Foldable**: Layout variants for foldable/surface duo devices
-- **Watch**: Wear OS layout variants (`layout-watch/`)
+- **Primary**: Green (`#4CAF50` variant) — see `ui/theme/Color.kt`
+- **Tertiary**: Orange accent
+- **Surfaces**: Light/dark variants defined in `Color.kt`
+- **Dynamic color**: Android 12+ dynamic color support in `Theme.kt`
+- **Status bar**: Managed via `SideEffect` with `accentBarTheme` utility
+- **Typography**: `headlineLarge`, `headlineMedium`, `titleLarge`, `bodyLarge`, `bodyMedium`, `labelLarge` — defined in `Type.kt`
