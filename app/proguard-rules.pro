@@ -1,0 +1,2 @@
+-keepclassmembers class * extends androidx.room.RoomDatabase { *; }
+-keep class com.openscan.app.data.db.** { *; }
