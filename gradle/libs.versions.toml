@@ -20,7 +20,7 @@ documentfile = "1.0.1"
 # Official OpenCV Android AAR, published directly to Maven Central since 4.9.0
 # (https://mvnrepository.com/artifact/org.opencv/opencv). Check for a newer
 # patch/minor release before shipping.
-opencv = "4.10.0"
+opencv = "4.12.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }

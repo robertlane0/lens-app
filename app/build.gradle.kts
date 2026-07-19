@@ -10,6 +10,8 @@ android {
     namespace = "com.openscan.app"
     compileSdk = 35
 
+    ndkVersion = "27.0.12077973"
+
     defaultConfig {
         applicationId = "com.openscan.app"
         minSdk = 24
@@ -40,6 +42,12 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
 }
 
